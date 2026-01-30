@@ -26,7 +26,7 @@ import feedparser
 load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # For session management
+app.secret_key = os.getenv('FLASK_SECRET_KEY', os.urandom(24))  # For session management
 
 
 def get_api_key():
