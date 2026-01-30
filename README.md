@@ -2,10 +2,16 @@
 
 כלי AI להורדה ותמלול פודקאסטים מספוטיפיי, חילוץ נושאים ויצירת פוסטים לוואטסאפ.
 
+## פריסה מהירה (Deploy)
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/podcast-to-post?referralCode=dvir)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Dvir1998/podcast-to-post)
+
 ## תכונות
 
 - **הורדת פודקאסטים** - הורדה אוטומטית מספוטיפיי דרך RSS feeds
-- **תמלול בעברית** - תמלול מדויק עם Google Gemini
+- **תמלול בעברית** - תמלול מדויק עם Google Gemini 2.5 Pro
 - **חילוץ נושאים** - ניתוח מעמיק של התמלול לזיהוי נושאים לפוסטים
 - **יצירת פוסטים** - כתיבה אוטומטית בסגנון AIDA
 - **פרומפטים לאינפוגרפיקה** - יצירת פרומפטים לתמונות בסגנון ExplAIn
@@ -14,7 +20,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/podcast-to-post.git
+git clone https://github.com/Dvir1998/podcast-to-post.git
 cd podcast-to-post
 
 # Create virtual environment
