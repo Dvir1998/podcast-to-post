@@ -1,0 +1,1978 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="כלי AI לתמלול פודקאסטים ויצירת תוכן - Explain">
+    <title>Podcast Transcriber | Explain</title>
+
+    <!-- Performance: Preconnect & DNS Prefetch -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="dns-prefetch" href="https://open.spotify.com">
+    <link rel="dns-prefetch" href="https://api.green-api.com">
+
+    <!-- Font with display swap for faster rendering -->
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --black: #0a0a0a;
+            --black-light: #1a1a1a;
+            --black-lighter: #2a2a2a;
+            --gold: #d4af37;
+            --gold-light: #e8c547;
+            --gold-dark: #b8962f;
+            --white: #ffffff;
+            --white-dim: #f5f5f5;
+            --gray: #888888;
+            --gray-dark: #555555;
+            --success: #4ade80;
+            --error: #f87171;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Heebo', sans-serif;
+            background: var(--black);
+            color: var(--white);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .bg-gradient {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(212, 175, 55, 0.05) 0%, transparent 50%),
+                linear-gradient(180deg, var(--black) 0%, var(--black-light) 100%);
+            z-index: -1;
+        }
+
+        .particles {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+        }
+
+        .particle {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            background: var(--gold);
+            border-radius: 50%;
+            opacity: 0.3;
+            animation: float 15s infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+            10% { opacity: 0.3; }
+            90% { opacity: 0.3; }
+            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 40px 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .logo {
+            margin-bottom: 20px;
+        }
+
+        .logo-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            box-shadow: 0 10px 40px rgba(212, 175, 55, 0.3);
+            animation: pulse-glow 3s infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 10px 40px rgba(212, 175, 55, 0.3); }
+            50% { box-shadow: 0 10px 60px rgba(212, 175, 55, 0.5); }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--white) 0%, var(--gold) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--gray);
+            font-weight: 300;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 15px;
+            padding: 8px 16px;
+            background: var(--black-lighter);
+            border-radius: 30px;
+            border: 1px solid var(--gold);
+            opacity: 0.8;
+        }
+
+        .brand span {
+            color: var(--gold);
+            font-weight: 600;
+        }
+
+        .main-card {
+            background: linear-gradient(145deg, var(--black-light), var(--black-lighter));
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            border-radius: 24px;
+            padding: 40px;
+            box-shadow:
+                0 20px 60px rgba(0, 0, 0, 0.5),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+        }
+
+        /* API Key Section */
+        .api-key-section {
+            margin-bottom: 20px;
+            border: 1px solid var(--black-lighter);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .api-key-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            background: var(--black);
+            cursor: pointer;
+            color: var(--gray);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .api-key-header:hover {
+            background: var(--black-lighter);
+        }
+
+        .api-key-status.ready {
+            color: var(--success);
+        }
+
+        .api-key-arrow {
+            margin-right: auto;
+            transition: transform 0.3s ease;
+        }
+
+        .api-key-arrow.open {
+            transform: rotate(180deg);
+        }
+
+        .api-key-content {
+            padding: 16px;
+            background: var(--black);
+            border-top: 1px solid var(--black-lighter);
+        }
+
+        .api-key-input {
+            font-family: monospace;
+        }
+
+        .api-key-help {
+            margin-top: 10px;
+            font-size: 0.85rem;
+            color: var(--gray);
+        }
+
+        .save-api-btn {
+            margin-top: 12px;
+            padding: 10px 20px;
+            background: var(--gold);
+            color: var(--black);
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .save-api-btn:hover {
+            background: var(--gold-light);
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .input-label {
+            display: block;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+            color: var(--gray);
+        }
+
+        .input-wrapper {
+            position: relative;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 18px 24px;
+            padding-left: 60px;
+            font-size: 1rem;
+            font-family: inherit;
+            background: var(--black);
+            border: 2px solid var(--black-lighter);
+            border-radius: 16px;
+            color: var(--white);
+            transition: all 0.3s ease;
+            direction: ltr;
+            text-align: left;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: var(--gold);
+            box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+        }
+
+        .url-input::placeholder {
+            color: var(--gray-dark);
+        }
+
+        .input-icon {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 1.3rem;
+            opacity: 0.5;
+        }
+
+        .submit-btn, .action-btn {
+            width: 100%;
+            padding: 18px 32px;
+            margin-top: 20px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            font-family: inherit;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+            color: var(--black);
+            border: none;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .submit-btn:hover:not(:disabled), .action-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4);
+        }
+
+        .submit-btn:disabled, .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .progress-section {
+            display: none;
+            margin-top: 40px;
+        }
+
+        .progress-section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .steps {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 16px 20px;
+            background: var(--black);
+            border-radius: 12px;
+            border: 1px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .step.active {
+            border-color: var(--gold);
+            background: rgba(212, 175, 55, 0.05);
+        }
+
+        .step.completed {
+            border-color: var(--success);
+        }
+
+        .step-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            background: var(--black-lighter);
+            flex-shrink: 0;
+        }
+
+        .step.active .step-icon {
+            background: var(--gold);
+            color: var(--black);
+            animation: spin 1s linear infinite;
+        }
+
+        .step.completed .step-icon {
+            background: var(--success);
+            color: var(--black);
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .step-content {
+            flex: 1;
+        }
+
+        .step-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .step-desc {
+            font-size: 0.85rem;
+            color: var(--gray);
+        }
+
+        .download-progress {
+            margin-top: 10px;
+            height: 6px;
+            background: var(--black-lighter);
+            border-radius: 3px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .download-progress.active {
+            display: block;
+        }
+
+        .download-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--gold) 0%, var(--gold-light) 100%);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .results-section {
+            display: none;
+            margin-top: 40px;
+        }
+
+        .results-section.active {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .success-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, var(--success) 0%, #22c55e 100%);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+            margin-bottom: 20px;
+            animation: bounce 0.5s ease;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .success-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+
+        .podcast-info {
+            background: var(--black);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .podcast-info h3 {
+            color: var(--gold);
+            margin-bottom: 5px;
+        }
+
+        .podcast-info p {
+            color: var(--gray);
+            font-size: 0.9rem;
+        }
+
+        .download-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+
+        .download-btn {
+            padding: 16px 24px;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            border: 2px solid var(--gold);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            text-decoration: none;
+        }
+
+        .download-btn.primary {
+            background: var(--gold);
+            color: var(--black);
+        }
+
+        .download-btn.secondary {
+            background: transparent;
+            color: var(--gold);
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(212, 175, 55, 0.3);
+        }
+
+        .transcript-preview {
+            background: var(--black);
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-bottom: 30px;
+        }
+
+        .transcript-preview h4 {
+            color: var(--gold);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .transcript-text {
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: var(--white-dim);
+            white-space: pre-wrap;
+            direction: rtl;
+        }
+
+        /* Topics Section */
+        .topics-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid var(--black-lighter);
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--gold);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .topics-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .topic-card {
+            background: var(--black);
+            border: 1px solid var(--black-lighter);
+            border-radius: 16px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .topic-card:hover {
+            border-color: var(--gold);
+        }
+
+        .topic-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+
+        .topic-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--white);
+        }
+
+        .topic-btn {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            font-family: inherit;
+            background: transparent;
+            color: var(--gold);
+            border: 1px solid var(--gold);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .topic-btn:hover:not(:disabled) {
+            background: var(--gold);
+            color: var(--black);
+        }
+
+        .topic-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .topic-btn.loading {
+            pointer-events: none;
+        }
+
+        .topic-summary {
+            font-size: 0.9rem;
+            color: var(--gray);
+            line-height: 1.6;
+        }
+
+        .topic-quote {
+            margin-top: 12px;
+            padding: 12px;
+            background: var(--black-lighter);
+            border-radius: 8px;
+            border-right: 3px solid var(--gold);
+            font-size: 0.85rem;
+            color: var(--white-dim);
+            font-style: italic;
+        }
+
+        .generate-all-btn {
+            margin-top: 20px;
+        }
+
+        /* Post Display */
+        .post-display {
+            margin-top: 16px;
+            display: none;
+        }
+
+        .post-display.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .post-content {
+            background: var(--black-lighter);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+
+        .post-text {
+            font-size: 0.9rem;
+            line-height: 1.8;
+            color: var(--white);
+            white-space: pre-wrap;
+            direction: rtl;
+        }
+
+        .post-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .copy-btn {
+            padding: 10px 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-family: inherit;
+            background: var(--gold);
+            color: var(--black);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .copy-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .copy-btn.copied {
+            background: var(--success);
+        }
+
+        .infographic-section {
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--black);
+            border-radius: 12px;
+            border: 1px dashed var(--gold);
+        }
+
+        .infographic-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--gold);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .infographic-prompt {
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--gray);
+            white-space: pre-wrap;
+            direction: rtl;
+        }
+
+        .generated-image-container {
+            margin-top: 20px;
+            padding: 16px;
+            background: linear-gradient(135deg, var(--black-light) 0%, var(--black) 100%);
+            border-radius: 12px;
+            border: 2px solid var(--gold);
+            text-align: center;
+        }
+
+        .image-title {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--gold);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .generated-image {
+            max-width: 100%;
+            max-height: 500px;
+            border-radius: 8px;
+            box-shadow: 0 8px 32px rgba(212, 175, 55, 0.3);
+        }
+
+        .image-actions {
+            margin-top: 16px;
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%);
+            color: var(--black);
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(212, 175, 55, 0.4);
+        }
+
+        .generate-image-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--black-lighter);
+            border-top-color: var(--gold);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        .new-btn {
+            margin-top: 30px;
+            padding: 14px 28px;
+            font-size: 1rem;
+            font-weight: 500;
+            font-family: inherit;
+            background: transparent;
+            color: var(--gray);
+            border: 1px solid var(--gray-dark);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .new-btn:hover {
+            border-color: var(--gold);
+            color: var(--gold);
+        }
+
+        .error-message {
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid var(--error);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error-message.active {
+            display: block;
+            animation: shake 0.5s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-10px); }
+            75% { transform: translateX(10px); }
+        }
+
+        .error-message p {
+            color: var(--error);
+        }
+
+        footer {
+            margin-top: auto;
+            padding-top: 40px;
+            text-align: center;
+            color: var(--gray-dark);
+            font-size: 0.85rem;
+        }
+
+        footer a {
+            color: var(--gold);
+            text-decoration: none;
+        }
+
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .main-card {
+                padding: 24px;
+            }
+
+            .download-buttons {
+                grid-template-columns: 1fr;
+            }
+
+            .topic-header {
+                flex-direction: column;
+            }
+
+            .topic-btn {
+                width: 100%;
+            }
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--black);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--black-lighter);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-dark);
+        }
+
+        /* WhatsApp Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--black-light);
+            border: 1px solid var(--gold);
+            border-radius: 16px;
+            padding: 32px;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .modal-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--gray);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: var(--white);
+        }
+
+        .modal-body {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .modal-input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .modal-label {
+            font-size: 0.9rem;
+            color: var(--gray);
+        }
+
+        .modal-input {
+            padding: 12px 16px;
+            border: 1px solid var(--black-lighter);
+            border-radius: 8px;
+            background: var(--black);
+            color: var(--white);
+            font-size: 1rem;
+            font-family: inherit;
+            direction: ltr;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--gold);
+        }
+
+        .modal-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            cursor: pointer;
+        }
+
+        .modal-checkbox input {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--gold);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.3s ease;
+        }
+
+        .modal-btn-primary {
+            background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+            color: white;
+        }
+
+        .modal-btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 16px rgba(37, 211, 102, 0.4);
+        }
+
+        .modal-btn-secondary {
+            background: var(--black-lighter);
+            color: var(--white);
+        }
+
+        .modal-btn-secondary:hover {
+            background: var(--gray-dark);
+        }
+
+        .modal-status {
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .modal-status.success {
+            display: block;
+            background: rgba(74, 222, 128, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
+        }
+
+        .modal-status.error {
+            display: block;
+            background: rgba(248, 113, 113, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
+        }
+
+        .whatsapp-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-gradient"></div>
+    <div class="particles" id="particles"></div>
+
+    <div class="container">
+        <header>
+            <div class="logo">
+                <div class="logo-icon">🎙️</div>
+            </div>
+            <h1>Podcast Transcriber</h1>
+            <p class="subtitle">הורדה, תמלול ויצירת פוסטים אוטומטית</p>
+            <div class="brand">
+                <span>AI לומדים</span> | Explain
+            </div>
+        </header>
+
+        <main class="main-card">
+            <!-- API Key Section -->
+            <div class="api-key-section" id="apiKeySection">
+                <div class="api-key-header" onclick="toggleApiKey()">
+                    <span class="api-key-status" id="apiKeyStatus">⚙️</span>
+                    <span>הגדרות API</span>
+                    <span class="api-key-arrow" id="apiKeyArrow">▼</span>
+                </div>
+                <div class="api-key-content" id="apiKeyContent" style="display: none;">
+                    <label class="input-label">מפתח API של Google Gemini</label>
+                    <div class="input-wrapper">
+                        <input
+                            type="password"
+                            class="url-input api-key-input"
+                            id="apiKeyInput"
+                            placeholder="AIza..."
+                            autocomplete="off"
+                        >
+                        <span class="input-icon">🔑</span>
+                    </div>
+                    <p class="api-key-help">
+                        אין לך מפתח? <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: var(--gold);">קבל מפתח חינם מ-Google AI Studio</a>
+                    </p>
+                    <button class="save-api-btn" onclick="saveApiKey()">
+                        <span>שמור מפתח</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Input Section -->
+            <div class="input-section" id="inputSection">
+                <label class="input-label">הדבק לינק של פרק פודקאסט מספוטיפיי</label>
+                <div class="input-wrapper">
+                    <input
+                        type="url"
+                        class="url-input"
+                        id="urlInput"
+                        placeholder="https://open.spotify.com/episode/..."
+                        autocomplete="off"
+                    >
+                    <span class="input-icon">🔗</span>
+                </div>
+                <button class="submit-btn" id="submitBtn" onclick="startProcessing()">
+                    <span>התחל עיבוד</span>
+                    <span>✨</span>
+                </button>
+            </div>
+
+            <!-- Progress Section -->
+            <div class="progress-section" id="progressSection">
+                <div class="steps">
+                    <div class="step" id="step1">
+                        <div class="step-icon">📍</div>
+                        <div class="step-content">
+                            <div class="step-title">חילוץ מידע</div>
+                            <div class="step-desc">מזהה את הפודקאסט והפרק</div>
+                        </div>
+                    </div>
+                    <div class="step" id="step2">
+                        <div class="step-icon">🔍</div>
+                        <div class="step-content">
+                            <div class="step-title">חיפוש RSS</div>
+                            <div class="step-desc">מחפש את מקור האודיו</div>
+                        </div>
+                    </div>
+                    <div class="step" id="step3">
+                        <div class="step-icon">⬇️</div>
+                        <div class="step-content">
+                            <div class="step-title">הורדה</div>
+                            <div class="step-desc">מוריד את קובץ האודיו</div>
+                            <div class="download-progress" id="downloadProgress">
+                                <div class="download-progress-bar" id="downloadProgressBar"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="step" id="step4">
+                        <div class="step-icon">📝</div>
+                        <div class="step-content">
+                            <div class="step-title">תמלול</div>
+                            <div class="step-desc">מתמלל עם AI בעברית</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div class="error-message" id="errorMessage">
+                <p id="errorText"></p>
+                <button class="new-btn" onclick="resetForm()" style="margin-top: 15px;">נסה שוב</button>
+            </div>
+
+            <!-- Results Section -->
+            <div class="results-section" id="resultsSection">
+                <div class="success-header">
+                    <div class="success-icon">✓</div>
+                    <h2 class="success-title">התמלול הושלם בהצלחה!</h2>
+                </div>
+
+                <div class="podcast-info">
+                    <h3 id="resultShowTitle">שם הפודקאסט</h3>
+                    <p id="resultEpisodeTitle">שם הפרק</p>
+                </div>
+
+                <div class="download-buttons">
+                    <a class="download-btn primary" id="downloadMp3Btn" href="#" download>
+                        <span>⬇️</span>
+                        <span>הורד MP3</span>
+                    </a>
+                    <a class="download-btn secondary" id="downloadTranscriptBtn" href="#" download>
+                        <span>📄</span>
+                        <span>הורד תמלול</span>
+                    </a>
+                </div>
+
+                <div class="transcript-preview">
+                    <h4>📝 תצוגה מקדימה של התמלול</h4>
+                    <div class="transcript-text" id="transcriptPreview"></div>
+                </div>
+
+                <!-- Topics Section -->
+                <div class="topics-section" id="topicsSection">
+                    <div class="section-header">
+                        <h3 class="section-title">
+                            <span>💡</span>
+                            <span>נושאים לפוסטים</span>
+                        </h3>
+                    </div>
+
+                    <button class="action-btn" id="extractTopicsBtn" onclick="extractTopics()">
+                        <span>🔍</span>
+                        <span>חלץ נושאים מהתמלול</span>
+                    </button>
+
+                    <div class="topics-list" id="topicsList" style="display: none;"></div>
+
+                    <button class="action-btn generate-all-btn" id="generateAllBtn" onclick="generateAllPosts()" style="display: none;">
+                        <span>✨</span>
+                        <span>צור פוסטים לכל הנושאים</span>
+                    </button>
+                </div>
+
+                <button class="new-btn" onclick="resetForm()">תמלל פודקאסט נוסף</button>
+            </div>
+        </main>
+
+        <footer>
+            <p>נבנה עם ❤️ ו-AI | <a href="https://dvirlinkai.taplink.ws/?from=app" target="_blank">Explain</a></p>
+        </footer>
+    </div>
+
+    <!-- WhatsApp Modal -->
+    <div class="modal-overlay" id="whatsappModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span>📱</span>
+                    <span>שליחה לוואטסאפ</span>
+                </div>
+                <button class="modal-close" onclick="closeWhatsAppModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="groups-info" style="background: var(--black); padding: 16px; border-radius: 8px; margin-bottom: 16px;">
+                    <div style="font-size: 0.9rem; color: var(--gold); margin-bottom: 8px;">📍 ישלח לקבוצות:</div>
+                    <div style="font-size: 0.85rem; color: var(--gray);">
+                        • עדכונים וטיפים על בינה מלאכותית<br>
+                        • עדכונים וטיפים על בינה מלאכותית #2
+                    </div>
+                </div>
+                <label class="modal-checkbox">
+                    <input type="checkbox" id="sendWithImage" checked>
+                    <span>שלח גם את התמונה (אם נוצרה)</span>
+                </label>
+                <div class="modal-status" id="whatsappStatus"></div>
+                <div class="modal-actions">
+                    <button class="modal-btn modal-btn-secondary" onclick="closeWhatsAppModal()">ביטול</button>
+                    <button class="modal-btn modal-btn-primary" id="sendWhatsAppBtn" onclick="sendToWhatsApp()">
+                        <span>📤</span>
+                        <span>שלח לשתי הקבוצות</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Create particles - deferred for better performance
+        function createParticles() {
+            const container = document.getElementById('particles');
+            // Reduced to 10 particles for better performance
+            for (let i = 0; i < 10; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.animationDelay = Math.random() * 15 + 's';
+                particle.style.animationDuration = (15 + Math.random() * 10) + 's';
+                container.appendChild(particle);
+            }
+        }
+        // Defer particle creation for faster initial load
+        requestAnimationFrame(createParticles);
+
+        // State
+        let currentJobId = null;
+        let statusInterval = null;
+        let topics = [];
+        let currentWhatsAppIndex = null;
+        let apiKey = localStorage.getItem('gemini_api_key') || '';
+
+        // API Key functions
+        function toggleApiKey() {
+            const content = document.getElementById('apiKeyContent');
+            const arrow = document.getElementById('apiKeyArrow');
+            const isOpen = content.style.display !== 'none';
+            content.style.display = isOpen ? 'none' : 'block';
+            arrow.classList.toggle('open', !isOpen);
+        }
+
+        async function saveApiKey() {
+            const input = document.getElementById('apiKeyInput');
+            const key = input.value.trim();
+
+            if (!key) {
+                alert('אנא הזן מפתח API');
+                return;
+            }
+
+            if (!key.startsWith('AIza')) {
+                alert('מפתח API לא תקין. המפתח צריך להתחיל ב-AIza');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/set-api-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_key: key })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    apiKey = key;
+                    localStorage.setItem('gemini_api_key', key);
+                    updateApiKeyStatus(true);
+                    toggleApiKey();
+                    alert('מפתח API נשמר בהצלחה!');
+                } else {
+                    alert(data.error || 'שגיאה בשמירת המפתח');
+                }
+            } catch (error) {
+                alert('שגיאה בשמירת המפתח: ' + error.message);
+            }
+        }
+
+        function updateApiKeyStatus(hasKey) {
+            const status = document.getElementById('apiKeyStatus');
+            if (hasKey) {
+                status.textContent = '✅';
+                status.classList.add('ready');
+            } else {
+                status.textContent = '⚙️';
+                status.classList.remove('ready');
+            }
+        }
+
+        async function checkApiKey() {
+            // First check localStorage
+            if (apiKey) {
+                document.getElementById('apiKeyInput').value = apiKey;
+                // Sync with server
+                try {
+                    await fetch('/api/set-api-key', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ api_key: apiKey })
+                    });
+                    updateApiKeyStatus(true);
+                } catch (e) {
+                    console.error('Failed to sync API key:', e);
+                }
+                return;
+            }
+
+            // Check server
+            try {
+                const response = await fetch('/api/check-api-key');
+                const data = await response.json();
+                updateApiKeyStatus(data.has_key);
+                if (!data.has_key) {
+                    toggleApiKey(); // Open the API key section if no key
+                }
+            } catch (error) {
+                console.error('Error checking API key:', error);
+            }
+        }
+
+        // Check API key on page load
+        document.addEventListener('DOMContentLoaded', checkApiKey);
+
+        // Start processing
+        async function startProcessing() {
+            const url = document.getElementById('urlInput').value.trim();
+
+            if (!url) {
+                showError('אנא הדבק לינק של פודקאסט');
+                return;
+            }
+
+            hideError();
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('progressSection').classList.add('active');
+            document.getElementById('resultsSection').classList.remove('active');
+            resetSteps();
+
+            try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (apiKey) {
+                    headers['X-API-Key'] = apiKey;
+                }
+
+                const response = await fetch('/api/process', {
+                    method: 'POST',
+                    headers: headers,
+                    body: JSON.stringify({ url })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    document.getElementById('submitBtn').disabled = false;
+                    return;
+                }
+
+                currentJobId = data.job_id;
+                startStatusPolling();
+
+            } catch (error) {
+                showError('שגיאה בהתחברות לשרת');
+                document.getElementById('submitBtn').disabled = false;
+            }
+        }
+
+        function startStatusPolling() {
+            statusInterval = setInterval(checkStatus, 1000);
+        }
+
+        async function checkStatus() {
+            if (!currentJobId) return;
+
+            try {
+                const response = await fetch(`/api/status/${currentJobId}`);
+                const job = await response.json();
+
+                updateUI(job);
+
+                if (job.status === 'completed' || job.status === 'error') {
+                    clearInterval(statusInterval);
+                }
+
+            } catch (error) {
+                console.error('Status check failed:', error);
+            }
+        }
+
+        function updateUI(job) {
+            const statusMap = {
+                'starting': 1,
+                'extracting': 1,
+                'searching': 1,
+                'finding_rss': 2,
+                'finding_episode': 2,
+                'downloading': 3,
+                'transcribing': 4,
+                'completed': 5,
+                'error': -1
+            };
+
+            const currentStep = statusMap[job.status] || 0;
+
+            for (let i = 1; i <= 4; i++) {
+                const step = document.getElementById(`step${i}`);
+                step.classList.remove('active', 'completed', 'error');
+
+                if (job.status === 'error' && currentStep === -1) {
+                } else if (i < currentStep) {
+                    step.classList.add('completed');
+                } else if (i === currentStep) {
+                    step.classList.add('active');
+                }
+            }
+
+            if (job.status === 'downloading' && job.download_progress) {
+                document.getElementById('downloadProgress').classList.add('active');
+                document.getElementById('downloadProgressBar').style.width = job.download_progress + '%';
+            }
+
+            if (job.status === 'completed') {
+                showResults(job);
+            }
+
+            if (job.status === 'error') {
+                showError(job.message);
+                document.getElementById('progressSection').classList.remove('active');
+            }
+        }
+
+        function showResults(job) {
+            document.getElementById('progressSection').classList.remove('active');
+            document.getElementById('resultsSection').classList.add('active');
+            document.getElementById('submitBtn').disabled = false;
+
+            document.getElementById('resultShowTitle').textContent = job.show_title || 'פודקאסט';
+            document.getElementById('resultEpisodeTitle').textContent = job.episode_title || 'פרק';
+
+            document.getElementById('downloadMp3Btn').href = `/api/download/${job.id}/mp3`;
+
+            if (job.transcript_path) {
+                document.getElementById('downloadTranscriptBtn').href = `/api/download/${job.id}/transcript`;
+                document.getElementById('downloadTranscriptBtn').style.display = 'flex';
+                document.getElementById('transcriptPreview').textContent = job.transcript_preview || '';
+            } else {
+                document.getElementById('downloadTranscriptBtn').style.display = 'none';
+                document.getElementById('transcriptPreview').textContent = 'התמלול לא זמין';
+            }
+
+            // Reset topics section
+            document.getElementById('topicsList').style.display = 'none';
+            document.getElementById('topicsList').innerHTML = '';
+            document.getElementById('generateAllBtn').style.display = 'none';
+            document.getElementById('extractTopicsBtn').disabled = false;
+            document.getElementById('extractTopicsBtn').innerHTML = '<span>🔍</span><span>חלץ נושאים מהתמלול</span>';
+        }
+
+        // Extract Topics
+        async function extractTopics() {
+            if (!currentJobId) return;
+
+            const btn = document.getElementById('extractTopicsBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span><span>מנתח את התמלול...</span>';
+
+            try {
+                const response = await fetch(`/api/extract-topics/${currentJobId}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>🔍</span><span>חלץ נושאים מהתמלול</span>';
+                    return;
+                }
+
+                topics = data.topics;
+                displayTopics(topics);
+
+            } catch (error) {
+                showError('שגיאה בחילוץ נושאים');
+                btn.disabled = false;
+                btn.innerHTML = '<span>🔍</span><span>חלץ נושאים מהתמלול</span>';
+            }
+        }
+
+        function displayTopics(topics) {
+            const list = document.getElementById('topicsList');
+            list.innerHTML = '';
+            list.style.display = 'flex';
+
+            document.getElementById('extractTopicsBtn').style.display = 'none';
+            document.getElementById('generateAllBtn').style.display = 'flex';
+
+            topics.forEach((topic, index) => {
+                const card = document.createElement('div');
+                card.className = 'topic-card';
+                card.id = `topic-${index}`;
+
+                card.innerHTML = `
+                    <div class="topic-header">
+                        <div class="topic-title">${topic.title}</div>
+                        <button class="topic-btn" onclick="generatePost(${index})">
+                            צור פוסט
+                        </button>
+                    </div>
+                    <div class="topic-summary">${topic.summary}</div>
+                    ${topic.quote ? `<div class="topic-quote">"${topic.quote}"</div>` : ''}
+                    <div class="post-display" id="post-display-${index}"></div>
+                `;
+
+                list.appendChild(card);
+            });
+        }
+
+        // Generate single post
+        async function generatePost(index) {
+            if (!currentJobId) return;
+
+            const btn = document.querySelector(`#topic-${index} .topic-btn`);
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>';
+
+            try {
+                const response = await fetch(`/api/generate-post/${currentJobId}/${index}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    btn.disabled = false;
+                    btn.textContent = 'צור פוסט';
+                    showError(data.error);
+                    return;
+                }
+
+                displayPost(index, data);
+                btn.textContent = '✓ נוצר';
+                btn.style.background = 'var(--success)';
+                btn.style.borderColor = 'var(--success)';
+                btn.style.color = 'var(--black)';
+
+            } catch (error) {
+                btn.disabled = false;
+                btn.textContent = 'צור פוסט';
+                showError('שגיאה ביצירת פוסט');
+            }
+        }
+
+        function displayPost(index, data) {
+            const container = document.getElementById(`post-display-${index}`);
+            container.classList.add('active');
+
+            container.innerHTML = `
+                <div class="post-content">
+                    <div class="post-text">${escapeHtml(data.post)}</div>
+                </div>
+                <div class="post-actions">
+                    <button class="copy-btn" onclick="copyPost(${index}, this)">
+                        <span>📋</span>
+                        <span>העתק פוסט</span>
+                    </button>
+                    <button class="copy-btn" style="background: transparent; border: 1px solid var(--gold); color: var(--gold);" onclick="copyInfographicAndOpenGemini(${index}, this)">
+                        <span>🎨</span>
+                        <span>העתק ופתח בג'מיני</span>
+                    </button>
+                    <button class="copy-btn generate-image-btn" style="background: linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%); color: var(--black);" onclick="generateImage(${index}, this)">
+                        <span>🖼️</span>
+                        <span>צור תמונה</span>
+                    </button>
+                    <button class="copy-btn whatsapp-btn" style="background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white;" onclick="openWhatsAppModal(${index}, this)">
+                        <span>📱</span>
+                        <span>שלח לוואטסאפ</span>
+                    </button>
+                </div>
+                <div class="infographic-section">
+                    <div class="infographic-title">
+                        <span>🎨</span>
+                        <span>פרומפט לאינפוגרפיקה (Nano Banana)</span>
+                    </div>
+                    <div class="infographic-prompt">${escapeHtml(data.infographic_prompt)}</div>
+                    <div class="generated-image-container" id="image-container-${index}" style="display: none;">
+                        <div class="image-title">
+                            <span>🖼️</span>
+                            <span>התמונה שנוצרה</span>
+                        </div>
+                        <img class="generated-image" id="generated-image-${index}" src="" alt="Generated Infographic">
+                        <div class="image-actions">
+                            <a class="download-btn" id="download-btn-${index}" href="" download="infographic.png">
+                                <span>⬇️</span>
+                                <span>הורד תמונה</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Store data for copying
+            container.dataset.post = data.post;
+            container.dataset.infographic = data.infographic_prompt;
+        }
+
+        // Generate all posts
+        async function generateAllPosts() {
+            if (!currentJobId) return;
+
+            const btn = document.getElementById('generateAllBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span><span>יוצר פוסטים...</span>';
+
+            try {
+                const response = await fetch(`/api/generate-all-posts/${currentJobId}`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    btn.disabled = false;
+                    btn.innerHTML = '<span>✨</span><span>צור פוסטים לכל הנושאים</span>';
+                    showError(data.error);
+                    return;
+                }
+
+                // Display all posts
+                data.posts.forEach((post, index) => {
+                    if (!post.error) {
+                        displayPost(index, post);
+                        const topicBtn = document.querySelector(`#topic-${index} .topic-btn`);
+                        if (topicBtn) {
+                            topicBtn.textContent = '✓ נוצר';
+                            topicBtn.style.background = 'var(--success)';
+                            topicBtn.style.borderColor = 'var(--success)';
+                            topicBtn.style.color = 'var(--black)';
+                            topicBtn.disabled = true;
+                        }
+                    }
+                });
+
+                btn.innerHTML = '<span>✓</span><span>כל הפוסטים נוצרו!</span>';
+                btn.style.background = 'var(--success)';
+
+            } catch (error) {
+                btn.disabled = false;
+                btn.innerHTML = '<span>✨</span><span>צור פוסטים לכל הנושאים</span>';
+                showError('שגיאה ביצירת פוסטים');
+            }
+        }
+
+        // Copy functions
+        function copyPost(index, btn) {
+            const container = document.getElementById(`post-display-${index}`);
+            const text = container.dataset.post;
+
+            navigator.clipboard.writeText(text).then(() => {
+                btn.classList.add('copied');
+                btn.innerHTML = '<span>✓</span><span>הועתק!</span>';
+                setTimeout(() => {
+                    btn.classList.remove('copied');
+                    btn.innerHTML = '<span>📋</span><span>העתק פוסט</span>';
+                }, 2000);
+            });
+        }
+
+        function copyInfographic(index, btn) {
+            const container = document.getElementById(`post-display-${index}`);
+            const text = container.dataset.infographic;
+
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHtml = btn.innerHTML;
+                btn.style.background = 'var(--success)';
+                btn.style.borderColor = 'var(--success)';
+                btn.style.color = 'var(--black)';
+                btn.innerHTML = '<span>✓</span><span>הועתק!</span>';
+                setTimeout(() => {
+                    btn.style.background = 'transparent';
+                    btn.style.borderColor = 'var(--gold)';
+                    btn.style.color = 'var(--gold)';
+                    btn.innerHTML = originalHtml;
+                }, 2000);
+            });
+        }
+
+        function copyInfographicAndOpenGemini(index, btn) {
+            const container = document.getElementById(`post-display-${index}`);
+            const text = container.dataset.infographic;
+
+            navigator.clipboard.writeText(text).then(() => {
+                const originalHtml = btn.innerHTML;
+                btn.style.background = 'var(--success)';
+                btn.style.borderColor = 'var(--success)';
+                btn.style.color = 'var(--black)';
+                btn.innerHTML = '<span>✓</span><span>הועתק! פותח ג\'מיני...</span>';
+
+                // Open Gemini in new tab
+                window.open('https://gemini.google.com/app', '_blank');
+
+                setTimeout(() => {
+                    btn.style.background = 'transparent';
+                    btn.style.borderColor = 'var(--gold)';
+                    btn.style.color = 'var(--gold)';
+                    btn.innerHTML = originalHtml;
+                }, 2000);
+            });
+        }
+
+        async function generateImage(index, btn) {
+            const container = document.getElementById(`post-display-${index}`);
+            const prompt = container.dataset.infographic;
+
+            if (!prompt) {
+                showError('אין פרומפט לאינפוגרפיקה');
+                return;
+            }
+
+            // Update button state
+            const originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span><span>יוצר תמונה...</span>';
+
+            try {
+                const response = await fetch('/api/generate-image', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        prompt: prompt,
+                        job_id: currentJobId,
+                        topic_index: index
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.image_url) {
+                    // Show the image container
+                    const imageContainer = document.getElementById(`image-container-${index}`);
+                    const imageElement = document.getElementById(`generated-image-${index}`);
+                    const downloadBtn = document.getElementById(`download-btn-${index}`);
+
+                    imageElement.src = data.image_url;
+                    downloadBtn.href = data.image_url;
+                    downloadBtn.download = data.filename || 'infographic.png';
+
+                    imageContainer.style.display = 'block';
+
+                    // Scroll to image
+                    imageContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                    // Success button state
+                    btn.style.background = 'var(--success)';
+                    btn.innerHTML = '<span>✓</span><span>התמונה נוצרה!</span>';
+                } else {
+                    // Show error
+                    const errorMsg = data.error || 'שגיאה ביצירת התמונה';
+                    showError(errorMsg);
+
+                    // If there's a prompt in the error response, offer to copy it
+                    if (data.prompt) {
+                        btn.innerHTML = '<span>📋</span><span>העתק והשתמש ידנית</span>';
+                        btn.onclick = function() {
+                            navigator.clipboard.writeText(data.prompt);
+                            btn.innerHTML = '<span>✓</span><span>הועתק!</span>';
+                        };
+                    }
+                }
+            } catch (error) {
+                showError('שגיאה ביצירת התמונה: ' + error.message);
+                btn.innerHTML = originalHtml;
+            } finally {
+                btn.disabled = false;
+                // Reset button after 3 seconds if success
+                setTimeout(() => {
+                    if (btn.innerHTML.includes('נוצרה')) {
+                        btn.style.background = 'linear-gradient(135deg, var(--gold) 0%, var(--gold-dark) 100%)';
+                        btn.innerHTML = '<span>🖼️</span><span>צור תמונה חדשה</span>';
+                    }
+                }, 3000);
+            }
+        }
+
+        // WhatsApp Functions
+        function openWhatsAppModal(index, btn) {
+            currentWhatsAppIndex = index;
+            const modal = document.getElementById('whatsappModal');
+            const statusDiv = document.getElementById('whatsappStatus');
+
+            // Reset status
+            statusDiv.className = 'modal-status';
+            statusDiv.style.display = 'none';
+
+            // Reset button
+            const sendBtn = document.getElementById('sendWhatsAppBtn');
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<span>📤</span><span>שלח לשתי הקבוצות</span>';
+
+            modal.classList.add('active');
+        }
+
+        function closeWhatsAppModal() {
+            document.getElementById('whatsappModal').classList.remove('active');
+            currentWhatsAppIndex = null;
+        }
+
+        async function sendToWhatsApp() {
+            const sendWithImage = document.getElementById('sendWithImage').checked;
+            const statusDiv = document.getElementById('whatsappStatus');
+            const sendBtn = document.getElementById('sendWhatsAppBtn');
+
+            // Get post data
+            const container = document.getElementById(`post-display-${currentWhatsAppIndex}`);
+            const postText = container.dataset.post;
+            const imageElement = document.getElementById(`generated-image-${currentWhatsAppIndex}`);
+            const imageSrc = imageElement && imageElement.src ? imageElement.src : '';
+
+            // Convert image URL to path for server
+            let imagePath = '';
+            if (sendWithImage && imageSrc && imageSrc.includes('/static/generated_images/')) {
+                imagePath = imageSrc.substring(imageSrc.indexOf('/static/'));
+            }
+
+            // Update button state
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = '<span class="spinner"></span><span>שולח לשתי הקבוצות...</span>';
+            statusDiv.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/whatsapp/send-post', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        post: postText,
+                        image_path: imagePath,
+                        send_to_all: true
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusDiv.innerHTML = `✓ ${data.message}<br><small>תמונה + טקסט כהודעה אחת</small>`;
+                    statusDiv.className = 'modal-status success';
+
+                    // Close modal after 3 seconds
+                    setTimeout(() => {
+                        closeWhatsAppModal();
+                    }, 3000);
+                } else {
+                    statusDiv.textContent = data.error || 'שגיאה בשליחה';
+                    statusDiv.className = 'modal-status error';
+                }
+            } catch (error) {
+                statusDiv.textContent = 'שגיאה: ' + error.message;
+                statusDiv.className = 'modal-status error';
+            } finally {
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<span>📤</span><span>שלח</span>';
+            }
+        }
+
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeWhatsAppModal();
+            }
+        });
+
+        // Close modal on overlay click
+        document.getElementById('whatsappModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeWhatsAppModal();
+            }
+        });
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function showError(message) {
+            document.getElementById('errorText').textContent = message;
+            document.getElementById('errorMessage').classList.add('active');
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').classList.remove('active');
+        }
+
+        function resetSteps() {
+            for (let i = 1; i <= 4; i++) {
+                const step = document.getElementById(`step${i}`);
+                step.classList.remove('active', 'completed', 'error');
+            }
+            document.getElementById('downloadProgress').classList.remove('active');
+            document.getElementById('downloadProgressBar').style.width = '0%';
+        }
+
+        function resetForm() {
+            currentJobId = null;
+            topics = [];
+            if (statusInterval) clearInterval(statusInterval);
+
+            document.getElementById('urlInput').value = '';
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('progressSection').classList.remove('active');
+            document.getElementById('resultsSection').classList.remove('active');
+            hideError();
+            resetSteps();
+        }
+
+        document.getElementById('urlInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                startProcessing();
+            }
+        });
+    </script>
+</body>
+</html>

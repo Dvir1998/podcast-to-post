@@ -1,0 +1,31 @@
+# Environment variables
+.env
+
+# Downloaded files
+downloads/
+transcripts/
+static/generated_images/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+.venv/
+*.egg-info/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Other
+*.log
+.claude/
+תמונות אינפוגרפיקה לפוסטים לקהילת explain/
