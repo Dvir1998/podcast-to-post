@@ -2,10 +2,13 @@ services:
   - type: web
     name: podcast-to-post
     runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    plan: free
+    buildCommand: |
+      pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --timeout 300
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
       - key: FLASK_SECRET_KEY
         generateValue: true
+    autoDeploy: true
