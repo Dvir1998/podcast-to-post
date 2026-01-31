@@ -28,4 +28,6 @@ Thumbs.db
 # Other
 *.log
 .claude/
+history.json
+server.log
 תמונות אינפוגרפיקה לפוסטים לקהילת explain/

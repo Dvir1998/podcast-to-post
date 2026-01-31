@@ -290,14 +290,20 @@ def transcribe_with_gemini(audio_path: Path, progress_callback=None, api_key: st
 
     if not api_key:
         print("ERROR: No API key provided for transcription")
-        return None
+        raise ValueError("נדרש מפתח API לתמלול. הזן מפתח בהגדרות.")
 
+    # Validate audio file exists
+    audio_path = Path(audio_path)
+    if not audio_path.exists():
+        raise FileNotFoundError(f"קובץ האודיו לא נמצא: {audio_path}")
+
+    temp_dir = None
     try:
         from google import genai
 
         client = genai.Client(api_key=api_key)
 
-        # Copy to temp with ASCII name
+        # Copy to temp with ASCII name (important for file upload)
         temp_dir = tempfile.mkdtemp()
         temp_path = Path(temp_dir) / "podcast_audio.mp3"
         shutil.copy2(audio_path, temp_path)
@@ -305,19 +311,30 @@ def transcribe_with_gemini(audio_path: Path, progress_callback=None, api_key: st
         if progress_callback:
             progress_callback("uploading")
 
+        print(f"Uploading audio file: {temp_path} ({temp_path.stat().st_size / 1024 / 1024:.1f} MB)")
         audio_file = client.files.upload(file=str(temp_path))
+        print(f"Upload complete, file state: {audio_file.state.name}")
 
-        # Wait for processing - check more frequently for speed
-        while audio_file.state.name == "PROCESSING":
-            time.sleep(0.5)  # Faster polling
+        # Wait for processing with timeout
+        max_wait = 300  # 5 minutes max
+        waited = 0
+        while audio_file.state.name == "PROCESSING" and waited < max_wait:
+            time.sleep(1)
+            waited += 1
             audio_file = client.files.get(name=audio_file.name)
+            if waited % 10 == 0:
+                print(f"Still processing... ({waited}s)")
 
         if audio_file.state.name == "FAILED":
-            shutil.rmtree(temp_dir)
-            return None
+            raise Exception("העיבוד של קובץ האודיו נכשל בשרת של Google")
+
+        if waited >= max_wait:
+            raise Exception("תם הזמן לעיבוד קובץ האודיו")
 
         if progress_callback:
             progress_callback("transcribing")
+
+        print("Starting transcription with Gemini 3 Pro...")
 
         prompt = """תמלל את קובץ האודיו הזה בעברית במדויק.
 
@@ -338,14 +355,14 @@ def transcribe_with_gemini(audio_path: Path, progress_callback=None, api_key: st
             contents=[prompt, audio_file]
         )
 
+        if not response or not response.text:
+            raise Exception("לא התקבלה תשובה מ-Gemini")
+
+        print(f"Transcription complete! Length: {len(response.text)} chars")
+
         # Cleanup
         try:
             client.files.delete(name=audio_file.name)
-        except:
-            pass
-
-        try:
-            shutil.rmtree(temp_dir)
         except:
             pass
 
@@ -353,7 +370,14 @@ def transcribe_with_gemini(audio_path: Path, progress_callback=None, api_key: st
 
     except Exception as e:
         print(f"Transcription error: {e}")
-        return None
+        raise
+    finally:
+        # Always cleanup temp directory
+        if temp_dir:
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
 
 
 # =============================================================================
@@ -875,14 +899,23 @@ def process_podcast_job(job_id: str, spotify_url: str, api_key: str = None):
             elif stage == "transcribing":
                 job["message"] = "מתמלל... אנא המתן"
 
-        transcript = transcribe_with_gemini(mp3_path, transcribe_progress, api_key)
+        try:
+            transcript = transcribe_with_gemini(mp3_path, transcribe_progress, api_key)
+        except Exception as e:
+            job["status"] = "error"
+            job["message"] = f"שגיאה בתמלול: {str(e)}"
+            return
 
-        if transcript:
-            # Save transcript
-            transcript_filename = f"{date_str}_{safe_show}_{safe_episode}_transcript.txt"
-            transcript_path = TRANSCRIPTS_DIR / transcript_filename
+        if not transcript:
+            job["status"] = "error"
+            job["message"] = "התמלול נכשל - לא התקבל טקסט"
+            return
 
-            header = f"""═══════════════════════════════════════════════════════════
+        # Save transcript
+        transcript_filename = f"{date_str}_{safe_show}_{safe_episode}_transcript.txt"
+        transcript_path = TRANSCRIPTS_DIR / transcript_filename
+
+        header = f"""═══════════════════════════════════════════════════════════
 תמלול פודקאסט
 ═══════════════════════════════════════════════════════════
 פודקאסט: {show_title}
@@ -893,12 +926,12 @@ def process_podcast_job(job_id: str, spotify_url: str, api_key: str = None):
 
 """
 
-            with open(transcript_path, 'w', encoding='utf-8') as f:
-                f.write(header + transcript)
+        with open(transcript_path, 'w', encoding='utf-8') as f:
+            f.write(header + transcript)
 
-            job["transcript_path"] = str(transcript_path)
-            job["transcript_filename"] = transcript_filename
-            job["transcript_preview"] = transcript[:500] + "..." if len(transcript) > 500 else transcript
+        job["transcript_path"] = str(transcript_path)
+        job["transcript_filename"] = transcript_filename
+        job["transcript_preview"] = transcript[:500] + "..." if len(transcript) > 500 else transcript
 
         job["status"] = "completed"
         job["message"] = "הושלם בהצלחה!"
@@ -1061,14 +1094,23 @@ def process_youtube_job(job_id: str, youtube_url: str, api_key: str = None):
             elif stage == "transcribing":
                 job["message"] = "מתמלל עם Gemini 3 Pro..."
 
-        transcript = transcribe_with_gemini(mp3_path, transcribe_progress, api_key)
+        try:
+            transcript = transcribe_with_gemini(mp3_path, transcribe_progress, api_key)
+        except Exception as e:
+            job["status"] = "error"
+            job["message"] = f"שגיאה בתמלול: {str(e)}"
+            return
 
-        if transcript:
-            # Save transcript
-            transcript_filename = f"{date_str}_youtube_{safe_title}_transcript.txt"
-            transcript_path = TRANSCRIPTS_DIR / transcript_filename
+        if not transcript:
+            job["status"] = "error"
+            job["message"] = "התמלול נכשל - לא התקבל טקסט"
+            return
 
-            header = f"""═══════════════════════════════════════════════════════════
+        # Save transcript
+        transcript_filename = f"{date_str}_youtube_{safe_title}_transcript.txt"
+        transcript_path = TRANSCRIPTS_DIR / transcript_filename
+
+        header = f"""═══════════════════════════════════════════════════════════
 תמלול יוטיוב
 ═══════════════════════════════════════════════════════════
 סרטון: {video_info['title']}
@@ -1079,12 +1121,12 @@ def process_youtube_job(job_id: str, youtube_url: str, api_key: str = None):
 
 """
 
-            with open(transcript_path, 'w', encoding='utf-8') as f:
-                f.write(header + transcript)
+        with open(transcript_path, 'w', encoding='utf-8') as f:
+            f.write(header + transcript)
 
-            job["transcript_path"] = str(transcript_path)
-            job["transcript_filename"] = transcript_filename
-            job["transcript_preview"] = transcript[:500] + "..." if len(transcript) > 500 else transcript
+        job["transcript_path"] = str(transcript_path)
+        job["transcript_filename"] = transcript_filename
+        job["transcript_preview"] = transcript[:500] + "..." if len(transcript) > 500 else transcript
 
         job["status"] = "completed"
         job["message"] = "הושלם בהצלחה!"
