@@ -334,7 +334,7 @@ def transcribe_with_gemini(audio_path: Path, progress_callback=None, api_key: st
 **התחל לתמלל:**"""
 
         response = client.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-3-pro-preview",
             contents=[prompt, audio_file]
         )
 
@@ -461,7 +461,7 @@ def extract_topics_from_transcript(transcript: str, api_key: str = None) -> list
 
         print("Sending request to Gemini...")
         response = client.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-3-pro-preview",
             contents=[prompt]
         )
 
@@ -583,7 +583,7 @@ def generate_post_for_topic(topic: dict, podcast_name: str, episode_name: str, a
 **כתוב את הפוסט:**"""
 
         response = client.models.generate_content(
-            model="gemini-2.5-pro",
+            model="gemini-3-pro-preview",
             contents=[prompt]
         )
 
@@ -716,7 +716,7 @@ Style: Clean, tech-oriented, professional. Strong visual hierarchy from Right to
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.5-pro")
+        model = genai.GenerativeModel("gemini-3-pro-preview")
 
         response = model.generate_content(
             f"{system_prompt}\n\n---\n\n{user_prompt}",
@@ -730,6 +730,50 @@ Style: Clean, tech-oriented, professional. Strong visual hierarchy from Right to
     except Exception as e:
         print(f"Error generating AI infographic prompt: {e}")
         return generate_infographic_prompt(topic, podcast_name)
+
+
+# =============================================================================
+# History Management
+# =============================================================================
+
+# History storage (in production, use database)
+transcription_history = []
+HISTORY_FILE = SCRIPT_DIR / "history.json"
+
+def load_history():
+    """Load history from file"""
+    global transcription_history
+    if HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
+                transcription_history = json.load(f)
+        except:
+            transcription_history = []
+
+def save_history():
+    """Save history to file"""
+    try:
+        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
+            json.dump(transcription_history[-50:], f, ensure_ascii=False, indent=2)  # Keep last 50
+    except:
+        pass
+
+def add_to_history(job_data):
+    """Add completed job to history"""
+    history_entry = {
+        "id": job_data.get("id"),
+        "type": job_data.get("type", "spotify"),
+        "title": job_data.get("show_title") or job_data.get("video_title", "Unknown"),
+        "episode": job_data.get("episode_title") or job_data.get("channel", ""),
+        "url": job_data.get("url"),
+        "completed_at": datetime.now().isoformat(),
+        "has_transcript": bool(job_data.get("transcript_path"))
+    }
+    transcription_history.insert(0, history_entry)
+    save_history()
+
+# Load history on startup
+load_history()
 
 
 # =============================================================================
@@ -858,6 +902,196 @@ def process_podcast_job(job_id: str, spotify_url: str, api_key: str = None):
 
         job["status"] = "completed"
         job["message"] = "הושלם בהצלחה!"
+        job["type"] = "spotify"
+
+        # Add to history
+        add_to_history(job)
+
+    except Exception as e:
+        job["status"] = "error"
+        job["message"] = f"שגיאה: {str(e)}"
+
+
+# =============================================================================
+# YouTube Support
+# =============================================================================
+
+def extract_youtube_id(url: str) -> str:
+    """Extract YouTube video ID from URL"""
+    patterns = [
+        r'(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})',
+        r'youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+def get_youtube_info(video_id: str) -> dict:
+    """Get YouTube video info using yt-dlp"""
+    try:
+        import yt_dlp
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': False,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
+            return {
+                "title": info.get("title", "Unknown"),
+                "channel": info.get("uploader", "Unknown"),
+                "duration": info.get("duration", 0),
+                "thumbnail": info.get("thumbnail"),
+            }
+    except Exception as e:
+        print(f"Error getting YouTube info: {e}")
+        return None
+
+
+def download_youtube_audio(video_id: str, output_path: Path, progress_callback=None) -> bool:
+    """Download audio from YouTube video using yt-dlp"""
+    try:
+        import yt_dlp
+
+        def progress_hook(d):
+            if progress_callback and d['status'] == 'downloading':
+                if 'total_bytes' in d and d['total_bytes'] > 0:
+                    percent = int(d['downloaded_bytes'] / d['total_bytes'] * 100)
+                    progress_callback(percent)
+                elif 'total_bytes_estimate' in d and d['total_bytes_estimate'] > 0:
+                    percent = int(d['downloaded_bytes'] / d['total_bytes_estimate'] * 100)
+                    progress_callback(percent)
+
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'outtmpl': str(output_path).replace('.mp3', '.%(ext)s'),
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'progress_hooks': [progress_hook],
+            'quiet': True,
+            'no_warnings': True,
+        }
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([f"https://www.youtube.com/watch?v={video_id}"])
+
+        # yt-dlp may create file with different extension, check and rename
+        for ext in ['.mp3', '.m4a', '.webm', '.opus']:
+            temp_path = Path(str(output_path).replace('.mp3', ext))
+            if temp_path.exists():
+                if ext != '.mp3':
+                    temp_path.rename(output_path)
+                return True
+
+        return output_path.exists()
+    except Exception as e:
+        print(f"Error downloading YouTube audio: {e}")
+        return False
+
+
+def process_youtube_job(job_id: str, youtube_url: str, api_key: str = None):
+    """Process YouTube video in background"""
+    job = jobs[job_id]
+    if not api_key:
+        api_key = job.get('api_key')
+
+    try:
+        # Step 1: Extract video ID
+        job["status"] = "extracting"
+        job["message"] = "מחלץ מידע מהלינק..."
+
+        video_id = extract_youtube_id(youtube_url)
+        if not video_id:
+            job["status"] = "error"
+            job["message"] = "לא הצלחתי לחלץ את מזהה הסרטון מהלינק"
+            return
+
+        job["video_id"] = video_id
+
+        # Step 2: Get video info
+        job["status"] = "searching"
+        job["message"] = "מקבל מידע על הסרטון..."
+
+        video_info = get_youtube_info(video_id)
+        if not video_info:
+            job["status"] = "error"
+            job["message"] = "לא הצלחתי לקבל מידע על הסרטון"
+            return
+
+        job["video_title"] = video_info["title"]
+        job["channel"] = video_info["channel"]
+        job["show_title"] = video_info["title"]  # For compatibility
+        job["episode_title"] = video_info["channel"]
+
+        # Step 3: Download audio
+        job["status"] = "downloading"
+        job["message"] = "מוריד את האודיו מהסרטון..."
+        job["download_progress"] = 0
+
+        date_str = datetime.now().strftime("%Y%m%d")
+        safe_title = sanitize_filename(video_info["title"])[:50]
+        mp3_filename = f"{date_str}_youtube_{safe_title}.mp3"
+        mp3_path = DOWNLOADS_DIR / mp3_filename
+
+        def download_progress(percent):
+            job["download_progress"] = percent
+
+        if not download_youtube_audio(video_id, mp3_path, download_progress):
+            job["status"] = "error"
+            job["message"] = "שגיאה בהורדת האודיו. ייתכן שהסרטון מוגן או לא זמין."
+            return
+
+        job["mp3_path"] = str(mp3_path)
+        job["mp3_filename"] = mp3_filename
+        job["download_progress"] = 100
+
+        # Step 4: Transcribe
+        job["status"] = "transcribing"
+        job["message"] = "מתמלל את הסרטון... (זה יכול לקחת כמה דקות)"
+
+        def transcribe_progress(stage):
+            if stage == "uploading":
+                job["message"] = "מעלה קובץ לשרת..."
+            elif stage == "transcribing":
+                job["message"] = "מתמלל עם Gemini 3 Pro..."
+
+        transcript = transcribe_with_gemini(mp3_path, transcribe_progress, api_key)
+
+        if transcript:
+            # Save transcript
+            transcript_filename = f"{date_str}_youtube_{safe_title}_transcript.txt"
+            transcript_path = TRANSCRIPTS_DIR / transcript_filename
+
+            header = f"""═══════════════════════════════════════════════════════════
+תמלול יוטיוב
+═══════════════════════════════════════════════════════════
+סרטון: {video_info['title']}
+ערוץ: {video_info['channel']}
+תאריך עיבוד: {datetime.now().strftime('%Y-%m-%d %H:%M')}
+לינק מקורי: {youtube_url}
+═══════════════════════════════════════════════════════════
+
+"""
+
+            with open(transcript_path, 'w', encoding='utf-8') as f:
+                f.write(header + transcript)
+
+            job["transcript_path"] = str(transcript_path)
+            job["transcript_filename"] = transcript_filename
+            job["transcript_preview"] = transcript[:500] + "..." if len(transcript) > 500 else transcript
+
+        job["status"] = "completed"
+        job["message"] = "הושלם בהצלחה!"
+        job["type"] = "youtube"
+
+        # Add to history
+        add_to_history(job)
 
     except Exception as e:
         job["status"] = "error"
@@ -945,6 +1179,87 @@ def start_processing():
     thread.start()
 
     return jsonify({"job_id": job_id})
+
+
+@app.route('/api/process-youtube', methods=['POST'])
+def start_youtube_processing():
+    """Start processing a YouTube URL"""
+    data = request.get_json()
+    youtube_url = data.get('url', '').strip()
+
+    # Validate URL
+    if not youtube_url:
+        return jsonify({"error": "URL is required"}), 400
+
+    if "youtube.com" not in youtube_url and "youtu.be" not in youtube_url:
+        return jsonify({"error": "זה לא נראה כמו לינק יוטיוב"}), 400
+
+    # Get API key for this job
+    api_key = get_api_key()
+    if not api_key:
+        return jsonify({"error": "נדרש מפתח API. הזן את המפתח שלך בהגדרות."}), 400
+
+    # Create job
+    job_id = str(uuid.uuid4())
+    jobs[job_id] = {
+        "id": job_id,
+        "url": youtube_url,
+        "type": "youtube",
+        "status": "starting",
+        "message": "מתחיל...",
+        "created_at": datetime.now().isoformat(),
+        "video_title": None,
+        "channel": None,
+        "mp3_path": None,
+        "transcript_path": None,
+        "download_progress": 0,
+        "api_key": api_key
+    }
+
+    # Start background processing
+    thread = threading.Thread(target=process_youtube_job, args=(job_id, youtube_url, api_key))
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({"job_id": job_id})
+
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    """Get transcription history"""
+    return jsonify({"history": transcription_history[:20]})
+
+
+@app.route('/api/history/<job_id>', methods=['DELETE'])
+def delete_history_item(job_id):
+    """Delete item from history"""
+    global transcription_history
+    transcription_history = [h for h in transcription_history if h.get('id') != job_id]
+    save_history()
+    return jsonify({"success": True})
+
+
+@app.route('/api/update-post', methods=['POST'])
+def update_post():
+    """Save edited post"""
+    data = request.get_json()
+    job_id = data.get('job_id')
+    topic_index = data.get('topic_index')
+    edited_post = data.get('post')
+
+    if not all([job_id, topic_index is not None, edited_post]):
+        return jsonify({"error": "Missing required fields"}), 400
+
+    job = jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job not found"}), 404
+
+    # Store edited post
+    if 'edited_posts' not in job:
+        job['edited_posts'] = {}
+    job['edited_posts'][str(topic_index)] = edited_post
+
+    return jsonify({"success": True, "post": edited_post})
 
 
 @app.route('/api/status/<job_id>')
