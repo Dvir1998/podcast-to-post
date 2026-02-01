@@ -351,7 +351,7 @@ def transcribe_with_gemini(audio_path: Path, progress_callback=None, api_key: st
 **התחל לתמלל:**"""
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-2.5-flash",
             contents=[prompt, audio_file]
         )
 
@@ -485,7 +485,7 @@ def extract_topics_from_transcript(transcript: str, api_key: str = None) -> list
 
         print("Sending request to Gemini...")
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-2.5-flash",
             contents=[prompt]
         )
 
@@ -607,7 +607,7 @@ def generate_post_for_topic(topic: dict, podcast_name: str, episode_name: str, a
 **כתוב את הפוסט:**"""
 
         response = client.models.generate_content(
-            model="gemini-3-pro-preview",
+            model="gemini-2.5-flash",
             contents=[prompt]
         )
 
@@ -740,7 +740,7 @@ Style: Clean, tech-oriented, professional. Strong visual hierarchy from Right to
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-3-pro-preview")
+        model = genai.GenerativeModel("gemini-2.5-flash")
 
         response = model.generate_content(
             f"{system_prompt}\n\n---\n\n{user_prompt}",

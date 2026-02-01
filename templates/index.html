@@ -1686,10 +1686,10 @@
             <p class="subtitle">תמלול, חילוץ נושאים ויצירת פוסטים בלחיצה אחת</p>
             <div class="brand">
                 <span>ExplAIn</span>
-                <span class="brand-badge">Gemini 3 Pro</span>
+                <span class="brand-badge">Gemini 2.5 Flash</span>
             </div>
             <div class="powered-by">
-                Powered by <span class="model-badge">Gemini 3 Pro Preview</span>
+                Powered by <span class="model-badge">Gemini 2.5 Flash Preview</span>
             </div>
         </header>
 
@@ -1784,7 +1784,7 @@
                         <div class="step-icon">📝</div>
                         <div class="step-content">
                             <div class="step-title">תמלול</div>
-                            <div class="step-desc">מתמלל עם Gemini 3 Pro</div>
+                            <div class="step-desc">מתמלל עם Gemini 2.5 Flash</div>
                         </div>
                     </div>
                 </div>
@@ -2214,7 +2214,7 @@
 
             const btn = document.getElementById('extractTopicsBtn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span><span>מנתח את התמלול עם Gemini 3...</span>';
+            btn.innerHTML = '<span class="spinner"></span><span>מנתח את התמלול עם Gemini 2.5...</span>';
 
             try {
                 const response = await fetch(`/api/extract-topics/${currentJobId}`, {
@@ -2337,7 +2337,7 @@
                 <div class="infographic-section">
                     <div class="infographic-title">
                         <span>🎨</span>
-                        <span>פרומפט לאינפוגרפיקה (Gemini 3 Pro Image)</span>
+                        <span>פרומפט לאינפוגרפיקה (Gemini 2.5 Flash Image)</span>
                     </div>
                     <div class="infographic-prompt">${escapeHtml(data.infographic_prompt)}</div>
                     <div class="generated-image-container" id="image-container-${index}" style="display: none;">
@@ -2366,7 +2366,7 @@
 
             const btn = document.getElementById('generateAllBtn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span><span>יוצר פוסטים עם Gemini 3...</span>';
+            btn.innerHTML = '<span class="spinner"></span><span>יוצר פוסטים עם Gemini 2.5...</span>';
 
             try {
                 const response = await fetch(`/api/generate-all-posts/${currentJobId}`, {
@@ -2454,7 +2454,7 @@
 
             const originalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner"></span><span>יוצר תמונה עם Gemini 3...</span>';
+            btn.innerHTML = '<span class="spinner"></span><span>יוצר תמונה עם Gemini 2.5...</span>';
 
             try {
                 const response = await fetch('/api/generate-image', {
